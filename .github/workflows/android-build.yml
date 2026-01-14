@@ -21,10 +21,11 @@ jobs:
     # (we export it into GITHUB_ENV in the step below so it's available to later steps)
 
     steps:
-      - name: Checkout
-        uses: ./.github/actions/checkout
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout repository
+        run: |
+          set -eux
+          # clone repository into the workspace using the workflow token
+          git clone --depth=1 "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" .
 
       - name: Set Android SDK root
         run: |
