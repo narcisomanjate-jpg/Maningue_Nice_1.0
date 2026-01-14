@@ -1,0 +1,114 @@
+name: Android CI Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Choose build type: debug or release'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_SDK_ROOT: ${{ runner.temp }}/android-sdk
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web and copy to Android/www
+        run: npm run android:prepare
+
+      - name: Setup Java (for Gradle)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Android SDK command-line tools
+        run: |
+          set -eux
+          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+          curl -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-latest.zip
+          unzip -q cmdline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
+          # Move to 'latest' folder
+          if [ -d "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" ]; then
+            mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+          fi
+          rm cmdline-tools.zip
+          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
+          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+
+      - name: Ensure Capacitor Android platform exists and sync
+        run: |
+          set -eux
+          if [ -d android ]; then
+            npm exec -- cap sync android
+          else
+            npm exec -- cap add android
+            npm exec -- cap sync android
+          fi
+
+      - name: Build APK (debug)
+        if: ${{ github.event.inputs.build_type == 'debug' || github.event_name == 'push' }}
+        run: |
+          set -eux
+          cd android
+          ./gradlew assembleDebug --no-daemon
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+
+      - name: Upload debug APK artifact
+        if: ${{ github.event.inputs.build_type == 'debug' || github.event_name == 'push' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Prepare release keystore (if requested)
+        if: ${{ github.event.inputs.build_type == 'release' }}
+        run: |
+          set -eux
+          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then echo "No KEYSTORE_BASE64 secret found"; exit 1; fi
+          echo "Decoding keystore..."
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/my-release-key.jks
+          cat > android/keystore.properties <<EOF
+storeFile=android/app/my-release-key.jks
+storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+keyAlias=${{ secrets.KEYSTORE_ALIAS }}
+keyPassword=${{ secrets.KEY_PASSWORD }}
+EOF
+
+      - name: Build APK (release)
+        if: ${{ github.event.inputs.build_type == 'release' }}
+        run: |
+          set -eux
+          cd android
+          ./gradlew assembleRelease --no-daemon
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+
+      - name: Upload release APK artifact
+        if: ${{ github.event.inputs.build_type == 'release' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/apk/release/app-release-unsigned.apk

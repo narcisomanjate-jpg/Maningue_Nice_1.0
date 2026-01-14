@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="pt">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#3b82f6" />
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" href="/icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>Super Agente</title>
+  </head>
+  <body>
+    <!-- Splash screen (visible until app removes it) -->
+    <div id="app-splash" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#ffffff,#f0f9ff);z-index:9999">
+      <div style="text-align:center">
+        <img src="/splash/splash1.png" alt="Splash" style="width:160px;height:auto;display:block;margin:0 auto 12px;border-radius:12px;" />
+        <div style="font-weight:800;color:#0f172a">Super Agente</div>
+      </div>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Fallback: remover splash after timeout caso o app não o faça
+      setTimeout(() => {
+        const s = document.getElementById('app-splash');
+        if (s) s.style.display = 'none';
+      }, 4000);
+    </script>
+  </body>
+</html>

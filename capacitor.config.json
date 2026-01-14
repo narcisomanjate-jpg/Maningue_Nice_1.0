@@ -1,0 +1,6 @@
+{
+  "appId": "com.example.superagente",
+  "appName": "Super Agente",
+  "webDir": "Android/www",
+  "bundledWebRuntime": false
+}
