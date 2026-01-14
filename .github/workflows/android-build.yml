@@ -36,6 +36,30 @@ jobs:
         with:
           node-version: '18'
 
+      - name: Ensure Node.js >= 22 (install Node 24 if needed)
+        run: |
+          set -eux
+          if command -v node >/dev/null 2>&1; then
+            MAJOR=$(node -v | sed 's/^v\([0-9]\+\).*/\1/')
+          else
+            MAJOR=0
+          fi
+          if [ "$MAJOR" -lt 22 ]; then
+            echo "Installing Node 24.x runtime..."
+            # Find latest Node 24 linux x64 tarball name
+            FNAME=$(curl -sSL https://nodejs.org/dist/latest-v24.x/ | grep -oP 'href="\K(node-v24[^\"]+linux-x64.tar.xz)' | head -n1)
+            if [ -z "$FNAME" ]; then
+              echo "Could not determine Node 24 tarball name" >&2
+              exit 1
+            fi
+            curl -fSL "https://nodejs.org/dist/latest-v24.x/$FNAME" -o node.tar.xz
+            sudo tar -C /usr/local --strip-components 1 -xJf node.tar.xz
+            rm node.tar.xz
+          else
+            echo "Node major version is $MAJOR, OK"
+          fi
+          node -v
+
       - name: Install dependencies
         run: |
           set -eux
