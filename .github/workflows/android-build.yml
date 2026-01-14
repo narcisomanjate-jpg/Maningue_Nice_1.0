@@ -52,9 +52,17 @@ jobs:
         run: |
           set -eux
           mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
-          curl -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-latest.zip
+          # Download with retries/follow-redirects and fail on HTTP errors
+          curl --retry 3 --retry-delay 5 -fSL -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-latest.zip
+          # Basic validation: ensure we downloaded a reasonably sized file (>= 1MB)
+          FILESIZE=$(stat -c%s cmdline-tools.zip || echo 0)
+          if [ "$FILESIZE" -lt 1000000 ]; then
+            echo "Downloaded file is too small ($FILESIZE bytes); printing head for diagnosis:" >&2
+            head -n 200 cmdline-tools.zip | sed -n '1,200p' >&2 || true
+            exit 9
+          fi
           unzip -q cmdline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
-          # Move to 'latest' folder
+          # Move to 'latest' folder if needed
           if [ -d "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" ]; then
             mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
           fi
