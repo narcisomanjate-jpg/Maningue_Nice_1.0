@@ -90,6 +90,15 @@ jobs:
           export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
           yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-33" "build-tools;33.0.2"
 
+      - name: Export Android SDK environment variables
+        run: |
+          # Ensure both ANDROID_HOME and ANDROID_SDK_ROOT point to the same SDK location to avoid
+          # Gradle complaining about mixed SDK locations.
+          echo "ANDROID_HOME=$RUNNER_TEMP/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$RUNNER_TEMP/android-sdk" >> $GITHUB_ENV
+          # Add platform-tools and cmdline-tools to PATH for later steps
+          echo "PATH=$RUNNER_TEMP/android-sdk/cmdline-tools/latest/bin:$RUNNER_TEMP/android-sdk/platform-tools:$PATH" >> $GITHUB_ENV
+
       - name: Ensure Capacitor Android platform exists and sync
         run: |
           set -eux
