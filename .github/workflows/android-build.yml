@@ -93,11 +93,13 @@ jobs:
       - name: Ensure Capacitor Android platform exists and sync
         run: |
           set -eux
+          # Ensure Capacitor CLI is available (install locally without modifying package.json)
+          npm install --no-save --no-audit @capacitor/cli @capacitor/core
           if [ -d android ]; then
-            npm exec -- cap sync android
+            npx cap sync android
           else
-            npm exec -- cap add android
-            npm exec -- cap sync android
+            npx cap add android
+            npx cap sync android
           fi
 
       - name: Build APK (debug)
