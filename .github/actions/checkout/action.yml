@@ -1,0 +1,22 @@
+name: Local Checkout
+description: Minimal checkout action implemented as a composite action to avoid external actions.
+inputs:
+  token:
+    description: 'GitHub token for fetching the repository'
+    required: true
+  branch:
+    description: 'Branch or ref name to checkout'
+    required: false
+runs:
+  using: composite
+  steps:
+    - name: Check out repository
+      shell: bash
+      run: |
+        set -eux
+        BRANCH="${{ inputs.branch }}"
+        if [ -z "$BRANCH" ]; then BRANCH="${{ github.ref_name }}"; fi
+        git init -b "$BRANCH"
+        git remote add origin "https://x-access-token:${{ inputs.token }}@github.com/${{ github.repository }}"
+        git fetch --depth=1 origin "$BRANCH"
+        git checkout FETCH_HEAD

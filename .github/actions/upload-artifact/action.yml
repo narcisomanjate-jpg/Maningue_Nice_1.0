@@ -1,0 +1,37 @@
+name: Local Upload Artifact
+description: Upload APK artifacts by creating a release and uploading files with gh CLI
+inputs:
+  token:
+    description: 'GitHub token'
+    required: true
+  name:
+    description: 'Release name prefix'
+    required: false
+    default: 'ci-build'
+  path:
+    description: 'Glob path to artifacts'
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Install gh CLI
+      shell: bash
+      run: |
+        set -eux
+        sudo apt-get update
+        sudo apt-get install -y gh
+    - name: Authenticate gh
+      shell: bash
+      run: |
+        set -eux
+        echo "${{ inputs.token }}" | gh auth login --with-token
+    - name: Create release and upload artifacts
+      shell: bash
+      run: |
+        set -eux
+        TAG="${{ inputs.name }}-${{ github.run_id }}"
+        gh release create "$TAG" --title "${{ inputs.name }} ${{ github.run_id }}" --notes "Artifact for run ${{ github.run_id }}"
+        for f in ${{ inputs.path }}; do
+          echo "Uploading $f"
+          gh release upload "$TAG" $f || true
+        done
