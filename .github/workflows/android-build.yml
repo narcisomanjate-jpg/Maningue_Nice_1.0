@@ -106,11 +106,18 @@ jobs:
           # so 'cap add' can detect the platform (save as a dev-dependency in the ephemeral runner).
           npm install --no-save --no-audit @capacitor/cli @capacitor/core
           npm install --no-audit --save-dev @capacitor/android
+          # Diagnostics: show what Capacitor CLI is available
+          echo "=== npm list @capacitor/cli --depth=0 ==="
+          npm list @capacitor/cli --depth=0 || true
+          echo "=== ls -la node_modules/.bin ==="
+          ls -la node_modules/.bin || true
+
           if [ -d android ]; then
-            npx cap sync android
+            # Prefer explicit npx invocation; fall back to node invoking the CLI script if necessary
+            npx --yes @capacitor/cli@latest sync android || node node_modules/@capacitor/cli/dist/cap.cjs sync android || node node_modules/@capacitor/cli/bin/cap sync android
           else
-            npx cap add android
-            npx cap sync android
+            npx --yes @capacitor/cli@latest add android || node node_modules/@capacitor/cli/dist/cap.cjs add android || node node_modules/@capacitor/cli/bin/cap add android
+            npx --yes @capacitor/cli@latest sync android || node node_modules/@capacitor/cli/dist/cap.cjs sync android || node node_modules/@capacitor/cli/bin/cap sync android
           fi
 
       - name: Build APK (debug)
