@@ -52,8 +52,28 @@ jobs:
         run: |
           set -eux
           mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
-          # Download with retries/follow-redirects and fail on HTTP errors
-          curl --retry 3 --retry-delay 5 -fSL -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-latest.zip
+          # Try several known commandlinetools filenames (some runners/regions may 404 on 'latest')
+          URLS=(
+            "https://dl.google.com/android/repository/commandlinetools-linux-latest.zip"
+            "https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip"
+            "https://dl.google.com/android/repository/commandlinetools-linux-9123335_latest.zip"
+            "https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip"
+          )
+          SUCCESS=0
+          for u in "${URLS[@]}"; do
+            echo "Trying $u"
+            if curl --retry 3 --retry-delay 5 -fSL -o cmdline-tools.zip "$u"; then
+              SUCCESS=1
+              echo "Downloaded from $u"
+              break
+            else
+              echo "Download failed for $u, trying next..."
+            fi
+          done
+          if [ "$SUCCESS" -ne 1 ]; then
+            echo "Unable to download any commandline tools from known URLs" >&2
+            exit 22
+          fi
           # Basic validation: ensure we downloaded a reasonably sized file (>= 1MB)
           FILESIZE=$(stat -c%s cmdline-tools.zip || echo 0)
           if [ "$FILESIZE" -lt 1000000 ]; then
