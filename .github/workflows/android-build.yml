@@ -85,15 +85,18 @@ jobs:
         if: ${{ github.event.inputs.build_type == 'release' }}
         run: |
           set -eux
-          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then echo "No KEYSTORE_BASE64 secret found"; exit 1; fi
-          echo "Decoding keystore..."
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/my-release-key.jks
-          cat > android/keystore.properties <<EOF
-          storeFile=android/app/my-release-key.jks
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.KEYSTORE_ALIAS }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          EOF
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Decoding keystore..."
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/my-release-key.jks
+            cat > android/keystore.properties <<EOF
+            storeFile=android/app/my-release-key.jks
+            storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+            keyAlias=${{ secrets.KEYSTORE_ALIAS }}
+            keyPassword=${{ secrets.KEY_PASSWORD }}
+            EOF
+          else
+            echo "No KEYSTORE_BASE64 secret found. Building unsigned release (skipping signing)."
+          fi
 
       - name: Build APK (release)
         if: ${{ github.event.inputs.build_type == 'release' }}
@@ -109,6 +112,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
-          path: |
-            android/app/build/outputs/apk/release/app-release.apk
-            android/app/build/outputs/apk/release/app-release-unsigned.apk
+          path: android/app/build/outputs/apk/release/*.apk
