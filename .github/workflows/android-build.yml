@@ -89,11 +89,11 @@ jobs:
           echo "Decoding keystore..."
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/my-release-key.jks
           cat > android/keystore.properties <<EOF
-storeFile=android/app/my-release-key.jks
-storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-keyAlias=${{ secrets.KEYSTORE_ALIAS }}
-keyPassword=${{ secrets.KEY_PASSWORD }}
-EOF
+          storeFile=android/app/my-release-key.jks
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.KEYSTORE_ALIAS }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          EOF
 
       - name: Build APK (release)
         if: ${{ github.event.inputs.build_type == 'release' }}
