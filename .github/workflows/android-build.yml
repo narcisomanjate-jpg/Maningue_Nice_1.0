@@ -17,156 +17,85 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # ANDROID_SDK_ROOT is set at runtime using the runner-provided $RUNNER_TEMP
-    # (we export it into GITHUB_ENV in the step below so it's available to later steps)
 
     steps:
       - name: Checkout repository
-        run: |
-          set -eux
-          # clone repository into the workspace using the workflow token
-          git clone --depth=1 "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" .
+        uses: actions/checkout@v4 # Forma padrão de checkout
 
       - name: Set Android SDK root
         run: |
           echo "ANDROID_SDK_ROOT=$RUNNER_TEMP/android-sdk" >> $GITHUB_ENV
 
       - name: Setup Node.js
-        uses: ./.github/actions/setup-node
+        uses: actions/setup-node@v4 # Usando a action oficial para garantir o Node 22
         with:
           node-version: '22'
+          cache: 'npm'
 
       - name: Install dependencies
         run: |
-          set -eux
-          # Try a clean CI install first; if it fails, fall back to a regular install which is more lenient
-          npm ci --prefer-offline --no-audit || npm install --prefer-offline --no-audit
+          npm install
 
       - name: Build web and copy to Android/www
         run: npm run android:prepare
 
       - name: Setup Java (for Gradle)
-        uses: ./.github/actions/setup-java
+        uses: actions/setup-java@v4 # Action oficial para Java
+        with:
+          distribution: 'zulu'
+          java-version: '17'
 
-      - name: Install Android SDK command-line tools
+      - name: Install Android SDK tools
         run: |
           set -eux
           mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
-          # Try several known commandlinetools filenames (some runners/regions may 404 on 'latest')
-          URLS=(
-            "https://dl.google.com/android/repository/commandlinetools-linux-latest.zip"
-            "https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip"
-            "https://dl.google.com/android/repository/commandlinetools-linux-9123335_latest.zip"
-            "https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip"
-          )
-          SUCCESS=0
-          for u in "${URLS[@]}"; do
-            echo "Trying $u"
-            if curl --retry 3 --retry-delay 5 -fSL -o cmdline-tools.zip "$u"; then
-              SUCCESS=1
-              echo "Downloaded from $u"
-              break
-            else
-              echo "Download failed for $u, trying next..."
-            fi
-          done
-          if [ "$SUCCESS" -ne 1 ]; then
-            echo "Unable to download any commandline tools from known URLs" >&2
-            exit 22
-          fi
-          # Basic validation: ensure we downloaded a reasonably sized file (>= 1MB)
-          FILESIZE=$(stat -c%s cmdline-tools.zip || echo 0)
-          if [ "$FILESIZE" -lt 1000000 ]; then
-            echo "Downloaded file is too small ($FILESIZE bytes); printing head for diagnosis:" >&2
-            head -n 200 cmdline-tools.zip | sed -n '1,200p' >&2 || true
-            exit 9
-          fi
+          curl -fSL -o cmdline-tools.zip "https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip"
           unzip -q cmdline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
-          # Move to 'latest' folder if needed
-          if [ -d "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" ]; then
-            mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-          fi
+          mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
           rm cmdline-tools.zip
           export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
-          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-33" "build-tools;33.0.2"
 
       - name: Export Android SDK environment variables
         run: |
-          # Ensure both ANDROID_HOME and ANDROID_SDK_ROOT point to the same SDK location to avoid
-          # Gradle complaining about mixed SDK locations.
-          echo "ANDROID_HOME=$RUNNER_TEMP/android-sdk" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$RUNNER_TEMP/android-sdk" >> $GITHUB_ENV
-          # Add platform-tools and cmdline-tools to PATH for later steps
-          echo "PATH=$RUNNER_TEMP/android-sdk/cmdline-tools/latest/bin:$RUNNER_TEMP/android-sdk/platform-tools:$PATH" >> $GITHUB_ENV
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH" >> $GITHUB_ENV
 
-      - name: Ensure Capacitor Android platform exists and sync
+      - name: Capacitor Sync
         run: |
-          set -eux
-          # Ensure Capacitor packages are available. Install @capacitor/android into package.json
-          # so 'cap add' can detect the platform (save as a dev-dependency in the ephemeral runner).
-          npm install --no-save --no-audit @capacitor/cli @capacitor/core
-          npm install --no-audit --save-dev @capacitor/android
-          # Diagnostics: show what Capacitor CLI is available
-          echo "=== npm list @capacitor/cli --depth=0 ==="
-          npm list @capacitor/cli --depth=0 || true
-          echo "=== ls -la node_modules/.bin ==="
-          ls -la node_modules/.bin || true
-
+          # Garante que as dependências do Capacitor estão no projeto
+          npm install @capacitor/cli @capacitor/core @capacitor/android
+          
           if [ -d android ]; then
-            # Prefer explicit npx invocation; fall back to node invoking the CLI script if necessary
-            npx --yes @capacitor/cli@latest sync android || node node_modules/@capacitor/cli/dist/cap.cjs sync android || node node_modules/@capacitor/cli/bin/cap sync android
+            npx cap sync android
           else
-            npx --yes @capacitor/cli@latest add android || node node_modules/@capacitor/cli/dist/cap.cjs add android || node node_modules/@capacitor/cli/bin/cap add android
-            npx --yes @capacitor/cli@latest sync android || node node_modules/@capacitor/cli/dist/cap.cjs sync android || node node_modules/@capacitor/cli/bin/cap sync android
+            npx cap add android
+            npx cap sync android
           fi
 
       - name: Build APK (debug)
         if: ${{ github.event.inputs.build_type == 'debug' || github.event_name == 'push' }}
         run: |
-          set -eux
           cd android
           ./gradlew assembleDebug --no-daemon
-        env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
 
-      - name: Upload debug APK artifact
+      - name: Upload debug APK
         if: ${{ github.event.inputs.build_type == 'debug' || github.event_name == 'push' }}
-        uses: ./.github/actions/upload-artifact
+        uses: actions/upload-artifact@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          name: debug
+          name: app-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Prepare release keystore (if requested)
-        if: ${{ github.event.inputs.build_type == 'release' }}
-        run: |
-          set -eux
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "Decoding keystore..."
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/my-release-key.jks
-            cat > android/keystore.properties <<EOF
-            storeFile=android/app/my-release-key.jks
-            storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-            keyAlias=${{ secrets.KEYSTORE_ALIAS }}
-            keyPassword=${{ secrets.KEY_PASSWORD }}
-            EOF
-          else
-            echo "No KEYSTORE_BASE64 secret found. Building unsigned release (skipping signing)."
-          fi
 
       - name: Build APK (release)
         if: ${{ github.event.inputs.build_type == 'release' }}
         run: |
-          set -eux
           cd android
+          # Se tiver keystore configurada, o gradlew usará. Caso contrário, gera unsigned.
           ./gradlew assembleRelease --no-daemon
-        env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
 
-      - name: Upload release APK artifact
+      - name: Upload release APK
         if: ${{ github.event.inputs.build_type == 'release' }}
-        uses: ./.github/actions/upload-artifact
+        uses: actions/upload-artifact@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          name: release
+          name: app-release
           path: android/app/build/outputs/apk/release/*.apk
