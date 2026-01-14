@@ -20,30 +20,31 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4 # Forma padrão de checkout
+        uses: actions/checkout@v4
 
       - name: Set Android SDK root
         run: |
           echo "ANDROID_SDK_ROOT=$RUNNER_TEMP/android-sdk" >> $GITHUB_ENV
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4 # Usando a action oficial para garantir o Node 22
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
 
+      - name: Setup Java (for Gradle)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21' # Corrigido para resolver "invalid source release: 21"
+
       - name: Install dependencies
         run: |
           npm install
+          npm install @capacitor/cli @capacitor/core @capacitor/android
 
-      - name: Build web and copy to Android/www
+      - name: Build web assets
         run: npm run android:prepare
-
-      - name: Setup Java (for Gradle)
-        uses: actions/setup-java@v4 # Action oficial para Java
-        with:
-          distribution: 'zulu'
-          java-version: '17'
 
       - name: Install Android SDK tools
         run: |
@@ -54,7 +55,7 @@ jobs:
           mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
           rm cmdline-tools.zip
           export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
-          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Export Android SDK environment variables
         run: |
@@ -63,9 +64,6 @@ jobs:
 
       - name: Capacitor Sync
         run: |
-          # Garante que as dependências do Capacitor estão no projeto
-          npm install @capacitor/cli @capacitor/core @capacitor/android
-          
           if [ -d android ]; then
             npx cap sync android
           else
@@ -77,6 +75,7 @@ jobs:
         if: ${{ github.event.inputs.build_type == 'debug' || github.event_name == 'push' }}
         run: |
           cd android
+          chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
       - name: Upload debug APK
@@ -90,7 +89,7 @@ jobs:
         if: ${{ github.event.inputs.build_type == 'release' }}
         run: |
           cd android
-          # Se tiver keystore configurada, o gradlew usará. Caso contrário, gera unsigned.
+          chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
 
       - name: Upload release APK
@@ -98,4 +97,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: android/app/build/outputs/apk/release/*.apk 
+          path: android/app/build/outputs/apk/release/*.apk
