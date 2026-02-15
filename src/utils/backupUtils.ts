@@ -79,20 +79,25 @@ export const exportLocalData = (
     const link = document.createElement('a');
     link.href = url;
     link.download = `super-agente-backup-${new Date().toISOString().split('T')[0]}.json`;
+    link.style.display = 'none';
     document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    
+    // Força o download
+    setTimeout(() => {
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 100);
 
     console.log('✅ Dados exportados com sucesso!');
-    alert('✅ Backup exportado com sucesso!');
+    return true;
   } catch (error) {
     console.error('❌ Erro ao exportar dados:', error);
-    alert('❌ Erro ao exportar backup.');
+    throw new Error('Erro ao exportar backup');
   }
 };
 
-// ⬇️⬇️⬇️ COLE AQUI A NOVA FUNÇÃO ⬇️⬇️⬇️
+// ⬇️⬇️⬇️ FUNÇÃO IMPORTAR DADOS ⬇️⬇️⬇️
 
 // Função para importar dados locais
 export const importLocalData = async (): Promise<{
@@ -106,11 +111,12 @@ export const importLocalData = async (): Promise<{
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
+    input.style.display = 'none';
     
     input.onchange = async (event) => {
       const file = (event.target as HTMLInputElement).files?.[0];
       if (!file) {
-        reject(new Error('Nenhum arquivo selecionado'));
+        resolve(null);
         return;
       }
       
@@ -120,7 +126,9 @@ export const importLocalData = async (): Promise<{
         
         // Validar estrutura do arquivo
         if (!data.user || !data.clients || !data.settings) {
-          throw new Error('Arquivo de backup inválido');
+          alert('❌ Erro: Arquivo de backup inválido. Certifique-se de que é um backup válido do Super Agente.');
+          resolve(null);
+          return;
         }
         
         // Validar tipos
@@ -134,32 +142,38 @@ export const importLocalData = async (): Promise<{
         
         // Confirmação do usuário
         const confirmImport = window.confirm(
-          `Importar dados de backup?\n\n` +
-          `Usuário: ${validatedData.user.name}\n` +
-          `Clientes: ${validatedData.clients.length}\n` +
-          `Data do backup: ${data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Desconhecida'}\n\n` +
-          `⚠️ Isso substituirá seus dados atuais!`
+          `📋 IMPORTAR BACKUP?\n\n` +
+          `👤 Usuário: ${validatedData.user.name}\n` +
+          `👥 Clientes: ${validatedData.clients.length}\n` +
+          `📅 Data do backup: ${data.timestamp ? new Date(data.timestamp).toLocaleString('pt-MZ') : 'Desconhecida'}\n\n` +
+          `⚠️ Aviso: Isso substituirá seus dados atuais!\n` +
+          `✅ Clique OK para continuar ou Cancelar para sair.`
         );
         
         if (confirmImport) {
           resolve(validatedData);
         } else {
-          reject(new Error('Importação cancelada pelo usuário'));
+          resolve(null);
         }
       } catch (error) {
         console.error('❌ Erro ao importar arquivo:', error);
-        reject(new Error('Erro ao processar arquivo de backup'));
+        alert('❌ Erro ao processar arquivo de backup. Verifique se o arquivo está correto.');
+        resolve(null);
+      } finally {
+        document.body.removeChild(input);
       }
     };
     
     input.oncancel = () => {
-      reject(new Error('Seleção de arquivo cancelada'));
+      resolve(null);
+      if (document.body.contains(input)) {
+        document.body.removeChild(input);
+      }
     };
     
+    document.body.appendChild(input);
     input.click();
   });
 };
-
-// ⬆️⬆️⬆️ FIM DA NOVA FUNÇÃO ⬆️⬆️⬆️
 
 // Firebase sync removed for offline-only distribution

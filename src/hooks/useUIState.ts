@@ -13,6 +13,8 @@ export const useUIState = (initialSettings: AppSettings) => {
   const [editingAccountColor, setEditingAccountColor] = useState<string | null>(null);
   const [editingAccountName, setEditingAccountName] = useState<string | null>(null);
   const [showFloatModal, setShowFloatModal] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [currentInvoiceData, setCurrentInvoiceData] = useState<{ client: any; archiveData: any } | null>(null);
 
   // Referências
   const mainRef = useRef<HTMLDivElement>(null);
@@ -201,6 +203,10 @@ export const useUIState = (initialSettings: AppSettings) => {
     setEditingAccountName,
     showFloatModal,
     setShowFloatModal,
+    showInvoiceModal,
+    setShowInvoiceModal,
+    currentInvoiceData,
+    setCurrentInvoiceData,
     
     // Referências
     mainRef,

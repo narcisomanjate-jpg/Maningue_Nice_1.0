@@ -115,17 +115,15 @@ export const useAppState = () => {
     alert(`✅ Conta arquivada com sucesso!\nNúmero da fatura: ${invoiceNumber}`);
   };
 
-  // Visualizar fatura (gera PDF)
+  // Visualizar fatura (abre modal com opções)
   const handleViewInvoice = async (client: any, archiveData: any) => {
     try {
-      const { generateInvoicePDF } = await import('../utils/pdfUtils');
-      const res = await generateInvoicePDF(client, archiveData, uiHook.settings);
-      if (!res.success) {
-        alert('Erro ao gerar fatura: ' + (res.error || 'Desconhecido'));
-      }
+      // Abrir modal de fatura
+      uiHook.setCurrentInvoiceData({ client, archiveData });
+      uiHook.setShowInvoiceModal(true);
     } catch (error: any) {
-      console.error('Erro ao gerar fatura:', error);
-      alert('Erro ao gerar fatura. Verifique o console para mais detalhes.');
+      console.error('Erro ao visualizar fatura:', error);
+      alert('Erro ao visualizar fatura. Verifique o console para mais detalhes.');
     }
   };
 
@@ -202,6 +200,25 @@ export const useAppState = () => {
     );
   };
 
+  // Função para importar backup
+  const handleImportBackup = async () => {
+    const importedData = await backupHook.handleImportLocalDataClick();
+    
+    if (importedData) {
+      // Atualizar todos os estados com os dados importados
+      setUser(importedData.user);
+      clientsHook.setClients(importedData.clients);
+      uiHook.setSettings(importedData.settings);
+      setManualFloatAdjustments(importedData.manualFloatAdjustments);
+      setInvoiceCounter(importedData.invoiceCounter);
+      
+      // Recarregar a página para garantir que tudo está sincronizado
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    }
+  };
+
   // Carregar dados iniciais
   const loadInitialData = async () => {
     const data = await backupHook.loadSavedData();
@@ -267,7 +284,8 @@ export const useAppState = () => {
     handleCloseAccount,
     handleEditTransaction,
     handleCreateAutomaticBackup,
-  handleViewInvoice,
+    handleImportBackup,
+    handleViewInvoice,
     handleSendTransactionConfirmation,
     handleSendSMSDebtReminder,
     handleSendStatementSMS,

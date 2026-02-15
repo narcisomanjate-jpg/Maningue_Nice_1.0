@@ -1,5 +1,3 @@
-		//	ModalsContainer.tsx
-
 import React from 'react';
 import { useApp } from '../../hooks/useApp';
 import AddClientModal from './AddClientModal';
@@ -9,6 +7,7 @@ import EditTransactionModal from './EditTransactionModal';
 import FloatManagementModal from './FloatManagementModal';
 import SMSConfirmModal from './SMSConfirmModal';
 import SMSOptionsModal from './SMSOptionsModal';
+import InvoiceModal from './InvoiceModal';
 
 const ModalsContainer: React.FC = () => {
   const {
@@ -20,10 +19,13 @@ const ModalsContainer: React.FC = () => {
     showFloatModal,
     showSMSConfirmModal,
     showSMSOptionsModal,
+    showInvoiceModal,
     
     // Dados para modais
     editingTransaction,
-    selectedClient
+    selectedClient,
+    currentInvoiceData,
+    setShowInvoiceModal
   } = useApp();
 
   return (
@@ -48,6 +50,15 @@ const ModalsContainer: React.FC = () => {
       
       {/* Modal de Opções de SMS */}
       {showSMSOptionsModal && selectedClient && <SMSOptionsModal />}
+      
+      {/* Modal de Visualização de Fatura */}
+      {showInvoiceModal && currentInvoiceData && (
+        <InvoiceModal 
+          client={currentInvoiceData.client}
+          archiveData={currentInvoiceData.archiveData}
+          onClose={() => setShowInvoiceModal(false)}
+        />
+      )}
       
       {/* Modal de Prompt de Sincronização Automática */}
     </>

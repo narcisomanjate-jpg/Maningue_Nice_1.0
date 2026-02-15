@@ -32,11 +32,11 @@ const SettingsView: React.FC = () => {
     user,
     setUser,
     
-  handleExportLocalData,
-  handleImportLocalDataClick,
-  clients,
-  manualFloatAdjustments,
-  invoiceCounter,
+    handleExportLocalData,
+    handleImportBackup,
+    clients,
+    manualFloatAdjustments,
+    invoiceCounter,
     
     isUserBoxOpen,
     setIsUserBoxOpen,
@@ -77,7 +77,7 @@ const SettingsView: React.FC = () => {
             </button>
             
             <button 
-              onClick={handleImportLocalDataClick}
+              onClick={handleImportBackup}
               className="w-full p-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-3 active:scale-95 transition-transform"
             >
               <Upload className="w-5 h-5" />

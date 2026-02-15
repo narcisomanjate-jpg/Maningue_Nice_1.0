@@ -39,6 +39,10 @@ export interface AppContextType {
   setShowSMSOptionsModal: (show: boolean) => void;
   showFloatModal: boolean;
   setShowFloatModal: (show: boolean) => void;
+  showInvoiceModal: boolean;
+  setShowInvoiceModal: (show: boolean) => void;
+  currentInvoiceData: { client: any; archiveData: any } | null;
+  setCurrentInvoiceData: (data: { client: any; archiveData: any } | null) => void;
   
   // ============ ESTADOS DE EDIÇÃO ============
   editingTransaction: Transaction | null;

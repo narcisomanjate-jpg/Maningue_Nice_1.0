@@ -1,27 +1,36 @@
-	//	Funções para gerar PDFs
-
+	// PDF Utilities com jsPDF
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import { Client, AppSettings, Transaction } from '../types';
 
-// Gerar PDF da fatura
+/**
+ * Gerar PDF da fatura de liquidação
+ */
 export const generateInvoicePDF = async (
-  client: Client, 
-  archiveData: any, 
+  client: Client,
+  archiveData: any,
   settings: AppSettings
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    // Criar um elemento temporário para o preview
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      return { 
-        success: false, 
-        error: 'Por favor, permita pop-ups para gerar a fatura.' 
-      };
-    }
-
+    // Criar elemento temporário para renderizar
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.left = '0';
+    container.style.top = '0';
+    container.style.width = '210mm';
+    container.style.height = '297mm';
+    container.style.backgroundColor = 'white';
+    container.style.zIndex = '-9999';
+    container.style.padding = '20mm';
+    
     // Formatar data
     const formatDate = (dateString: string) => {
       const date = new Date(dateString);
-      return date.toLocaleDateString('pt-MZ');
+      return date.toLocaleDateString('pt-MZ', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric' 
+      });
     };
 
     // Calcular totais
@@ -37,244 +46,369 @@ export const generateInvoicePDF = async (
 
     const saldoFinal = totalOutflow - totalInflow;
 
-    // HTML para o preview
+    // HTML profissional para o PDF
     const htmlContent = `
       <!DOCTYPE html>
       <html lang="pt">
       <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Fatura ${archiveData.invoiceNumber}</title>
         <style>
-          body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          * {
             margin: 0;
-            padding: 20px;
-            color: #333;
-            background: #f8fafc;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          body {
+            font-family: 'Segoe UI', Tahoma, Geneva, sans-serif;
+            color: #1a1a1a;
+            line-height: 1.6;
           }
           .invoice-container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            padding: 30px;
-            position: relative;
-            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
           }
           .header {
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-            position: relative;
+            border-bottom: 3px solid #0066cc;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
           }
-          .header::after {
-            content: '';
-            position: absolute;
-            bottom: -2px;
-            left: 0;
-            width: 100px;
-            height: 4px;
-            background: ${settings.uiConfig.primaryColor};
-            border-radius: 2px;
+          .company-name {
+            font-size: 24px;
+            font-weight: 900;
+            color: #0066cc;
+            margin-bottom: 5px;
           }
           .invoice-title {
-            font-size: 24px;
-            font-weight: 800;
-            color: #1e293b;
-            margin-bottom: 5px;
+            font-size: 16px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 3px;
           }
           .invoice-number {
-            font-size: 18px;
-            color: ${settings.uiConfig.primaryColor};
+            font-size: 13px;
+            color: #0066cc;
             font-weight: 700;
           }
-          .client-info {
-            background: #f8fafc;
-            padding: 20px;
-            border-radius: 12px;
-            margin-bottom: 30px;
+          .invoice-date {
+            font-size: 12px;
+            color: #666;
+            margin-top: 3px;
+          }
+          .client-section {
+            margin-bottom: 20px;
+            background: #f5f5f5;
+            padding: 12px;
+            border-radius: 4px;
+          }
+          .section-title {
+            font-size: 11px;
+            font-weight: 900;
+            text-transform: uppercase;
+            color: #666;
+            margin-bottom: 5px;
+            letter-spacing: 1px;
           }
           .client-name {
-            font-size: 20px;
+            font-size: 14px;
             font-weight: 700;
-            color: #1e293b;
-            margin-bottom: 5px;
+            color: #1a1a1a;
+            margin-bottom: 3px;
           }
           .client-phone {
-            color: #64748b;
-            font-size: 14px;
+            font-size: 12px;
+            color: #666;
           }
-          .transaction-table {
+          .transactions-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 30px;
+            margin-bottom: 15px;
+            font-size: 11px;
           }
-          .transaction-table th {
-            background: #f1f5f9;
-            padding: 12px 15px;
+          .transactions-table th {
+            background-color: #0066cc;
+            color: white;
+            padding: 8px 5px;
             text-align: left;
-            font-size: 12px;
             font-weight: 700;
-            color: #475569;
+            font-size: 10px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
           }
-          .transaction-table td {
-            padding: 15px;
-            border-bottom: 1px solid #e2e8f0;
+          .transactions-table td {
+            padding: 8px 5px;
+            border-bottom: 1px solid #ddd;
           }
-          .transaction-table tr:last-child td {
+          .transactions-table tr:last-child td {
             border-bottom: none;
           }
-          .transaction-type {
+          .type-inflow {
+            color: #008000;
             font-weight: 700;
+            background-color: #f0f8f0;
+            padding: 2px 4px;
+            border-radius: 2px;
             text-transform: uppercase;
-            font-size: 12px;
-            padding: 4px 8px;
-            border-radius: 6px;
-            display: inline-block;
+            font-size: 9px;
           }
-          .inflow { background: #dcfce7; color: #166534; }
-          .outflow { background: #fee2e2; color: #991b1b; }
-          .amount {
+          .type-outflow {
+            color: #cc0000;
             font-weight: 700;
-            font-size: 14px;
+            background-color: #f8f0f0;
+            padding: 2px 4px;
+            border-radius: 2px;
+            text-transform: uppercase;
+            font-size: 9px;
           }
-          .total-section {
-            background: linear-gradient(135deg, #f8fafc, #e2e8f0);
-            padding: 25px;
-            border-radius: 12px;
-            margin-top: 20px;
+          .amount-inflow {
+            color: #008000;
+            font-weight: 700;
+            text-align: right;
           }
-          .total-row {
+          .amount-outflow {
+            color: #cc0000;
+            font-weight: 700;
+            text-align: right;
+          }
+          .summary-section {
+            background: #f5f5f5;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+          }
+          .summary-row {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 10px;
-            font-size: 16px;
+            margin-bottom: 6px;
+            font-size: 12px;
           }
-          .final-total {
-            font-size: 22px;
-            font-weight: 800;
-            color: ${settings.uiConfig.primaryColor};
-            border-top: 2px dashed #cbd5e1;
-            padding-top: 15px;
-            margin-top: 15px;
+          .summary-row-label {
+            font-weight: 600;
+          }
+          .summary-row-value {
+            font-weight: 700;
+            text-align: right;
+            min-width: 80px;
+          }
+          .final-balance {
+            display: flex;
+            justify-content: space-between;
+            padding-top: 8px;
+            border-top: 2px solid #0066cc;
+            font-size: 14px;
+            font-weight: 900;
+            color: #0066cc;
+            margin-top: 8px;
           }
           .footer {
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
             text-align: center;
-            margin-top: 40px;
-            color: #94a3b8;
-            font-size: 12px;
-            border-top: 1px solid #e2e8f0;
-            padding-top: 20px;
-          }
-          @media print {
-            body { background: white; }
-            .invoice-container { box-shadow: none; }
-            .no-print { display: none; }
+            font-size: 10px;
+            color: #999;
           }
         </style>
       </head>
       <body>
         <div class="invoice-container">
-          <div class="header">
-            <div class="invoice-title">FATURA DE LIQUIDAÇÃO</div>
-            <div class="invoice-number">${archiveData.invoiceNumber}</div>
-            <div style="color: #64748b; margin-top: 10px;">
-              Data: ${formatDate(archiveData.dateClosed)}
+          <div>
+            <div class="header">
+              <div class="company-name">SUPER AGENTE</div>
+              <div class="invoice-title">EXTRATO DE CONTA - FATURA DE LIQUIDAÇÃO</div>
+              <div class="invoice-number">Fatura Nº: ${archiveData.invoiceNumber}</div>
+              <div class="invoice-date">Data: ${formatDate(archiveData.dateClosed)}</div>
             </div>
-          </div>
 
-          <div class="client-info">
-            <div class="client-name">${client.name}</div>
-            <div class="client-phone">${client.phone}</div>
-          </div>
-
-          <table class="transaction-table">
-            <thead>
-              <tr>
-                <th>Data/Hora</th>
-                <th>Descrição</th>
-                <th>Método</th>
-                <th>Tipo</th>
-                <th style="text-align: right;">Valor (${settings.currency})</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${archiveData.transactions.map((tx: Transaction) => `
-                <tr>
-                  <td>
-                    <div>${formatDate(tx.date)}</div>
-                    <small style="color: #94a3b8;">${new Date(tx.date).toLocaleTimeString('pt-MZ', { hour: '2-digit', minute: '2-digit' })}</small>
-                  </td>
-                  <td>${tx.description || tx.type}</td>
-                  <td>${tx.method}</td>
-                  <td>
-                    <span class="transaction-type ${tx.type.toLowerCase()}">${tx.type === 'Inflow' ? 'Entrada' : 'Saída'}</span>
-                  </td>
-                  <td style="text-align: right;">
-                    <span class="amount ${tx.type === 'Inflow' ? 'inflow' : 'outflow'}" style="color: ${tx.type === 'Inflow' ? '#166534' : '#991b1b'};">
-                      ${tx.type === 'Inflow' ? '+' : '-'}${tx.amount.toLocaleString()}
-                    </span>
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-
-          <div class="total-section">
-            <div class="total-row">
-              <span>Total de Saídas:</span>
-              <span style="font-weight: 700; color: #991b1b;">${totalOutflow.toLocaleString()} ${settings.currency}</span>
+            <div class="client-section">
+              <div class="section-title">Cliente</div>
+              <div class="client-name">${client.name}</div>
+              <div class="client-phone">${client.phone || 'N/A'}</div>
             </div>
-            <div class="total-row">
-              <span>Total de Entradas:</span>
-              <span style="font-weight: 700; color: #166534;">${totalInflow.toLocaleString()} ${settings.currency}</span>
+
+            <div style="margin-bottom: 15px;">
+              <div class="section-title">Transações</div>
+              <table class="transactions-table">
+                <thead>
+                  <tr>
+                    <th style="width: 12%;">Data</th>
+                    <th style="width: 12%;">Hora</th>
+                    <th style="width: 25%;">Descrição</th>
+                    <th style="width: 15%;">Método</th>
+                    <th style="width: 12%;">Tipo</th>
+                    <th style="width: 14%; text-align: right;">Valor (${settings.currency})</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${archiveData.transactions.map((tx: Transaction) => {
+                    const date = new Date(tx.date);
+                    return `
+                      <tr>
+                        <td>${date.toLocaleDateString('pt-MZ')}</td>
+                        <td>${date.toLocaleTimeString('pt-MZ', { hour: '2-digit', minute: '2-digit' })}</td>
+                        <td>${tx.description || (tx.type === 'Inflow' ? 'Entrada' : 'Saída')}</td>
+                        <td>${tx.method}</td>
+                        <td><span class="type-${tx.type.toLowerCase()}">${tx.type === 'Inflow' ? 'Entrada' : 'Saída'}</span></td>
+                        <td class="amount-${tx.type.toLowerCase()}">
+                          ${tx.type === 'Inflow' ? '+' : '-'}${tx.amount.toLocaleString('pt-MZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
             </div>
-            <div class="total-row final-total">
-              <span>SALDO FINAL:</span>
-              <span>${saldoFinal.toLocaleString()} ${settings.currency}</span>
+
+            <div class="summary-section">
+              <div class="summary-row">
+                <span class="summary-row-label">Total de Saídas:</span>
+                <span class="summary-row-value" style="color: #cc0000;">
+                  ${totalOutflow.toLocaleString('pt-MZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${settings.currency}
+                </span>
+              </div>
+              <div class="summary-row">
+                <span class="summary-row-label">Total de Entradas:</span>
+                <span class="summary-row-value" style="color: #008000;">
+                  ${totalInflow.toLocaleString('pt-MZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${settings.currency}
+                </span>
+              </div>
+              <div class="final-balance">
+                <span>SALDO FINAL:</span>
+                <span>${saldoFinal.toLocaleString('pt-MZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${settings.currency}</span>
+              </div>
             </div>
           </div>
 
           <div class="footer">
-            <p>Super Agente • Fatura gerada automaticamente</p>
-            <p>Data de impressão: ${new Date().toLocaleDateString('pt-MZ')}</p>
-            <button class="no-print" onclick="window.print()" style="
-              background: ${settings.uiConfig.primaryColor};
-              color: white;
-              border: none;
-              padding: 12px 24px;
-              border-radius: 8px;
-              font-weight: 700;
-              cursor: pointer;
-              margin-top: 15px;
-            ">Imprimir/Guardar como PDF</button>
+            <p>Extrato gerado automaticamente pelo Super Agente</p>
+            <p>Data: ${new Date().toLocaleDateString('pt-MZ')} às ${new Date().toLocaleTimeString('pt-MZ', { hour: '2-digit', minute: '2-digit' })}</p>
           </div>
         </div>
       </body>
       </html>
     `;
 
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    printWindow.focus();
+    // Adicionar ao DOM temporariamente
+    container.innerHTML = htmlContent;
+    document.body.appendChild(container);
+
+    // Converter para canvas
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff'
+    });
+
+    // Remover do DOM
+    document.body.removeChild(container);
+
+    // Criar PDF
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+
+    // Download do PDF
+    const fileName = `Extrato_${client.name}_${archiveData.invoiceNumber}.pdf`;
+    pdf.save(fileName);
 
     return { success: true };
   } catch (error: any) {
-    console.error('❌ Erro ao gerar fatura:', error);
+    console.error('❌ Erro ao gerar PDF:', error);
     return { success: false, error: error.message };
   }
 };
 
-// Gerar extrato em texto
+/**
+ * Gerar relatório em PDF com múltiplas páginas
+ */
+export const generateStatementPDF = async (
+  client: Client,
+  settings: AppSettings
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    let yPosition = 20;
+
+    // Header
+    pdf.setFontSize(16);
+    pdf.setTextColor(0, 102, 204);
+    pdf.text('EXTRATO DE CONTA', 20, yPosition);
+    yPosition += 8;
+
+    pdf.setFontSize(10);
+    pdf.setTextColor(100);
+    pdf.text(`Cliente: ${client.name}`, 20, yPosition);
+    yPosition += 5;
+    pdf.text(`Telefone: ${client.phone || 'N/A'}`, 20, yPosition);
+    yPosition += 5;
+    pdf.text(`Data: ${new Date().toLocaleDateString('pt-MZ')}`, 20, yPosition);
+    yPosition += 10;
+
+    // Transações
+    pdf.setFontSize(10);
+    pdf.setTextColor(0);
+    
+    client.activeAccount.forEach((tx, index) => {
+      const date = new Date(tx.date).toLocaleDateString('pt-MZ');
+      const time = new Date(tx.date).toLocaleTimeString('pt-MZ', { hour: '2-digit', minute: '2-digit' });
+      const type = tx.type === 'Inflow' ? 'Entrada' : 'Saída';
+      
+      const line = `${index + 1}. ${date} ${time} - ${tx.description || type} - ${tx.type === 'Inflow' ? '+' : '-'}${tx.amount.toLocaleString()} ${settings.currency}`;
+      
+      if (yPosition > 250) {
+        pdf.addPage();
+        yPosition = 20;
+      }
+      
+      pdf.text(line, 20, yPosition, { maxWidth: 170 });
+      yPosition += 6;
+    });
+
+    // Saldo final
+    const totalBalance = client.activeAccount.reduce((acc, curr) => 
+      curr.type === 'Inflow' ? acc - curr.amount : acc + curr.amount, 
+      0
+    );
+
+    yPosition += 5;
+    pdf.setFontSize(12);
+    pdf.setTextColor(0, 102, 204);
+    pdf.text(`SALDO ATUAL: ${totalBalance.toLocaleString()} ${settings.currency}`, 20, yPosition);
+
+    pdf.save(`Extrato_${client.name}.pdf`);
+    return { success: true };
+  } catch (error: any) {
+    console.error('❌ Erro ao gerar extrato:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+
+/**
+ * Gerar extrato em texto (para SMS ou compartilhamento)
+ */
 export const generateStatementText = (
   client: Client,
   settings: AppSettings
 ): string => {
-  let statement = `Extrato de ${client.name}:\n\n`;
+  let statement = `=== EXTRATO DE ${client.name} ===\n`;
   
   client.activeAccount.forEach((tx, index) => {
     const date = new Date(tx.date).toLocaleDateString('pt-MZ');
@@ -295,17 +429,21 @@ export const generateStatementText = (
     0
   );
   
-  statement += `\nSALDO ATUAL: ${totalBalance.toLocaleString()} ${settings.currency}`;
+  statement += `\n━━━━━━━━━━━━━━━━━━━━━━━\n`;
+  statement += `SALDO ATUAL: ${totalBalance.toLocaleString()} ${settings.currency}`;
   
   return statement;
 };
 
-// Gerar relatório de transações
+/**
+ * Gerar relatório de transações
+ */
 export const generateTransactionReport = (
   transactions: Transaction[],
   title: string = 'Relatório de Transações'
 ): string => {
-  let report = `${title}\n\n`;
+  let report = `${title}\n`;
+  report += `${'='.repeat(title.length)}\n\n`;
   let totalInflow = 0;
   let totalOutflow = 0;
   
@@ -328,6 +466,7 @@ export const generateTransactionReport = (
   });
   
   report += `\nRESUMO:\n`;
+  report += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
   report += `Total de Entradas: ${totalInflow.toLocaleString()}\n`;
   report += `Total de Saídas: ${totalOutflow.toLocaleString()}\n`;
   report += `Saldo Final: ${(totalOutflow - totalInflow).toLocaleString()}\n`;

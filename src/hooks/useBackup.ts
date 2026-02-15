@@ -145,7 +145,15 @@ export const useBackup = () => {
     manualFloatAdjustments: Record<PaymentMethod, number>,
     invoiceCounter: number
   ) => {
-    exportLocalData(user, clients, settings, manualFloatAdjustments, invoiceCounter);
+    try {
+      const success = exportLocalData(user, clients, settings, manualFloatAdjustments, invoiceCounter);
+      if (success) {
+        alert('✅ Backup exportado com sucesso!\nO arquivo foi salvo na pasta de Downloads.');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao exportar backup:', error);
+      alert('❌ Erro ao exportar backup. Verifique o console para mais detalhes.');
+    }
   }, []);
 
   // Importar dados locais
@@ -156,7 +164,17 @@ export const useBackup = () => {
     manualFloatAdjustments: Record<PaymentMethod, number>;
     invoiceCounter: number;
   } | null> => {
-    return await importLocalData();
+    try {
+      const result = await importLocalData();
+      if (result) {
+        alert('✅ Backup importado com sucesso!\nA aplicação será recarregada com os dados restaurados.');
+      }
+      return result;
+    } catch (error) {
+      console.error('❌ Erro ao importar backup:', error);
+      alert('❌ Erro ao importar backup. Verifique o arquivo e tente novamente.');
+      return null;
+    }
   };
 
 
